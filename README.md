@@ -34,7 +34,7 @@ Strategy for int 'lucky_number': to 100
 **Random value between 100 (inclusive) and 200 (exclusive):**
 
 ```shell
-Strategy for int 'lucky_number': from 100 to 100
+Strategy for int 'lucky_number': from 100 to 200
 ```
 
 **Random even value between 0 (inclusive) and 100 (exclusive):**
