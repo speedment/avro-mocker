@@ -234,7 +234,6 @@ public final class MockerBuilderUtil {
                             continue; // tryAgain
                         }
 
-                        final long width = upper - lower;
                         switch (strategy) {
                             case "" : case "rand" : {
                                 switch (fieldSchema.getType()) {
