@@ -612,7 +612,7 @@ public final class MockerBuilderUtil {
         }
 
         final Function<Random, Object> inner = parseField(scn, name, typeSelected);
-        if (nullable) {
+        if (nullable && nullProb > 0) {
             return rand -> {
                 if (rand.nextDouble() <= nullProb) return null;
                 else return inner.apply(rand);
