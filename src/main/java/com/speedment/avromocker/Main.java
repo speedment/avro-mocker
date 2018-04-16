@@ -142,12 +142,14 @@ public final class Main {
                         writer.flush();
                     }
 
-                    if (i % (total / 100) == total / 100 - 1) {
-                        final double delta = (System.currentTimeMillis() - timeStarted) / 1000d;
-                        System.out.format(
-                            "...%2d%% complete. %,d rows created (%.2f rows/s).%n",
-                            (i / (total / 100)), i, (i / delta)
-                        );
+                    if (total >= 100) {
+                        if (i % (total / 100) == total / 100 - 1) {
+                            final double delta = (System.currentTimeMillis() - timeStarted) / 1000d;
+                            System.out.format(
+                                "...%2d%% complete. %,d rows created (%.2f rows/s).%n",
+                                (i / (total / 100)), i, (i / delta)
+                            );
+                        }
                     }
                 }
 
