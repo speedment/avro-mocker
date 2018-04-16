@@ -8,17 +8,16 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.SignStyle;
 import java.time.temporal.ChronoUnit;
-import java.util.HashSet;
-import java.util.Random;
-import java.util.Scanner;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.lang.String.format;
 import static java.time.temporal.ChronoField.*;
 import static java.util.Arrays.asList;
 import static java.util.Optional.ofNullable;
@@ -77,7 +76,29 @@ public final class MockerBuilderUtil {
             SYMBOLS       = 4;
     }
 
-    public static Function<Random, Object> parseEnumField(Scanner scn, String name, Schema fieldSchema) {
+    public static Function<Random, Object> parseField(Scanner scn, String key, Schema fieldSchema) {
+        switch (fieldSchema.getType()) {
+            case INT:
+            case LONG:
+                return parseIntegerField(scn, key, fieldSchema);
+            case FLOAT:
+            case DOUBLE:
+                return parseDecimalField(scn, key, fieldSchema);
+            case STRING:
+                return parseStringField(scn, key, fieldSchema);
+            case ENUM:
+                return parseEnumField(scn, key, fieldSchema);
+            case UNION:
+                return parseUnionField(scn, key, fieldSchema);
+            default:
+                throw new IllegalArgumentException(format(
+                    "The avro type '%s' is currently not supported.",
+                    fieldSchema.getType().getName()
+                ));
+        }
+    }
+
+    static Function<Random, Object> parseEnumField(Scanner scn, String name, Schema fieldSchema) {
         final String typeName = fieldSchema.getType().getName();
 
         while (true) {
@@ -155,7 +176,7 @@ public final class MockerBuilderUtil {
         }
     }
 
-    public static Function<Random, Object> parseIntegerField(Scanner scn, String name, Schema fieldSchema) {
+    static Function<Random, Object> parseIntegerField(Scanner scn, String name, Schema fieldSchema) {
         final String typeName = fieldSchema.getType().getName();
 
         while (true) {
@@ -337,7 +358,7 @@ public final class MockerBuilderUtil {
         }
     }
 
-    public static Function<Random, Object> parseDecimalField(Scanner scn, String name, Schema fieldSchema) {
+    static Function<Random, Object> parseDecimalField(Scanner scn, String name, Schema fieldSchema) {
         final String typeName = fieldSchema.getType().getName();
 
         while (true) {
@@ -434,7 +455,7 @@ public final class MockerBuilderUtil {
         }
     }
 
-    public static Function<Random, Object> parseStringField(Scanner scn, String name, Schema fieldSchema) {
+    static Function<Random, Object> parseStringField(Scanner scn, String name, Schema fieldSchema) {
         final String typeName = fieldSchema.getType().getName();
 
         while (true) {
@@ -523,6 +544,81 @@ public final class MockerBuilderUtil {
                     }
                 }
             }
+        }
+    }
+
+    static Function<Random, Object> parseUnionField(Scanner scn, String name, Schema fieldSchema) {
+        final String typeName = fieldSchema.getType().getName();
+
+        final boolean nullable = fieldSchema.getTypes().stream()
+            .map(Schema::getType).anyMatch(Schema.Type.NULL::equals);
+
+        final double nullProb;
+        if (nullable) {
+            while (true) {
+                System.out.format("Enter probability (0.0 - 1.0) that %s '%s' is null: ", typeName, name);
+                final String line = scn.nextLine().trim();
+                final double probability;
+                try {
+                    probability = Double.parseDouble(line);
+                } catch (final NumberFormatException ex) {
+                    System.err.println("Could not parse probability. Enter a real number between 0.0 and 1.0.");
+                    continue;
+                }
+                if (probability < 0 || probability > 1) {
+                    System.err.println("Probability must be in span 0.0 and 1.0 (inclusive).");
+                    continue;
+                }
+                nullProb = probability;
+                break;
+            }
+        } else nullProb = 0;
+
+        final Set<Schema> types = fieldSchema.getTypes().stream()
+            .filter(s -> !Schema.Type.NULL.equals(s.getType()))
+            .collect(Collectors.toSet());
+
+        final Schema typeSelected;
+        if (types.size() > 1) {
+            while (true) {
+                System.out.format("Select type to generate for %s '%s': ", typeName, name);
+                final String line = scn.nextLine().trim();
+                if ("help".equals(line)) {
+                    System.out.format(
+                        "Enter one of the following: [%s].%n",
+                        types.stream()
+                            .map(Schema::getType)
+                            .map(Schema.Type::getName)
+                            .collect(joining(", ")));
+                } else {
+                    final Optional<Schema> selected = types.stream()
+                        .filter(t -> t.getType().getName().equalsIgnoreCase(line))
+                        .findAny();
+
+                    if (selected.isPresent()) {
+                        typeSelected = selected.get();
+                        break;
+                    }
+                }
+            }
+        } else if (types.size() == 1) {
+            typeSelected = types.iterator().next();
+        } else {
+            throw new IllegalArgumentException(format(
+                "Avro %s field '%s' does not have at least 1 non-null type.",
+                typeName,
+                fieldSchema.getName()
+            ));
+        }
+
+        final Function<Random, Object> inner = parseField(scn, name, typeSelected);
+        if (nullable) {
+            return rand -> {
+                if (rand.nextDouble() <= nullProb) return null;
+                else return inner.apply(rand);
+            };
+        } else {
+            return inner;
         }
     }
 

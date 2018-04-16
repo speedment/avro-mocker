@@ -88,30 +88,8 @@ public final class Main {
                 .withRandom(random);
 
             for (final Schema.Field field : schema.getFields()) {
-                final Schema fieldSchema = field.schema();
                 final String key = field.name();
-
-                switch (fieldSchema.getType()) {
-                    case INT:
-                    case LONG:
-                        builder.withAction(key, parseIntegerField(scn, key, fieldSchema));
-                        break;
-                    case FLOAT:
-                    case DOUBLE:
-                        builder.withAction(key, parseDecimalField(scn, key, fieldSchema));
-                        break;
-                    case STRING:
-                        builder.withAction(key, parseStringField(scn, key, fieldSchema));
-                        break;
-                    case ENUM:
-                        builder.withAction(key, parseEnumField(scn, key, fieldSchema));
-                        break;
-                    default:
-                        throw new IllegalArgumentException(format(
-                            "The avro type '%s' is currently not supported.",
-                            fieldSchema.getType().getName()
-                        ));
-                }
+                builder.withAction(key, parseField(scn, key, field.schema()));
             }
 
             final Mocker mocker = builder.build();
